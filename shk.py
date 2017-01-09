@@ -22,6 +22,8 @@ def calc_shk(wave, flux, rv):
     wave = wave[ind]
     flux = flux[ind]
     
+    flux[flux < 0.0] = 0.0  # mask out negative values
+    
     #construct bandpass "filters":
     HKfwhm = 1.09 # width of core filters
     VRfwhm = 20.0 # width of continuum filters
