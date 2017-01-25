@@ -5,8 +5,8 @@ PRO read_all
 data_dir = '/Users/mbedell/Documents/Research/HARPSTwins/Data/Reduced/'
 out_dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/'
 
-;filenames = [file_search(data_dir+'*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'18Sco/*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'archive/*/HARPS*ccf_G2_A.fits')]
-filenames = [file_search(data_dir+'*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'archive/*/HARPS*ccf_G2_A.fits')]
+filenames = [file_search(data_dir+'*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'18Sco/*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'archive/*/HARPS*ccf_G2_A.fits')]
+;filenames = [file_search(data_dir+'*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'archive/*/HARPS*ccf_G2_A.fits')]
 
 
 ;bad_stars = ['HIP65708','HIP83276','HIP19911','HIP6407','HIP18844','HIP67620','HIP73241','HIP103983']
@@ -43,7 +43,7 @@ for i=0,n_files-1 do begin
   t_rv[i] =double(strmid(header[line],strpos(header[line],'=')+2,(strpos(header[line],'/')-strpos(header[line],'=')-2)))
   line = where(strmid(header,0,29) eq 'HIERARCH ESO DRS DRIFT SPE RV')
   t_drift[i] = double(strmid(header[line],strpos(header[line],'=')+2,(strpos(header[line],'/')-strpos(header[line],'=')-2)))
-  line = where(strmid(header,0,26) eq 'HIERARCH ESO DRS CCF NOISE')
+  line = where(strmid(header,0,26) eq 'HIERARCH ESO DRS DVRMS')
   t_sig[i] = double(strmid(header[line],strpos(header[line],'=')+2,(strpos(header[line],'/')-strpos(header[line],'=')-2)))
   line = where(strmid(header,0,20) eq 'HIERARCH ESO DRS BJD')
   t_date[i] = double(strmid(header[line],strpos(header[line],'=')+2,(strpos(header[line],'/')-strpos(header[line],'=')-2))) 

@@ -16,7 +16,7 @@ ref_date = floor(date[0])
 
 rv = rv - avgsigclip(rv, 3, /med, /iter)
 rv = rv * 1e3
-sig = sig * 1e3
+;sig = sig * 1e3
 
 ;good = where(sig le 2.5)
 ;date=date[good]
