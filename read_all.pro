@@ -43,7 +43,7 @@ for i=0,n_files-1 do begin
   t_rv[i] =double(strmid(header[line],strpos(header[line],'=')+2,(strpos(header[line],'/')-strpos(header[line],'=')-2)))
   line = where(strmid(header,0,29) eq 'HIERARCH ESO DRS DRIFT SPE RV')
   t_drift[i] = double(strmid(header[line],strpos(header[line],'=')+2,(strpos(header[line],'/')-strpos(header[line],'=')-2)))
-  line = where(strmid(header,0,26) eq 'HIERARCH ESO DRS DVRMS')
+  line = where(strmid(header,0,26) eq 'HIERARCH ESO DRS CCF NOISE')
   t_sig[i] = double(strmid(header[line],strpos(header[line],'=')+2,(strpos(header[line],'/')-strpos(header[line],'=')-2)))
   line = where(strmid(header,0,20) eq 'HIERARCH ESO DRS BJD')
   t_date[i] = double(strmid(header[line],strpos(header[line],'=')+2,(strpos(header[line],'/')-strpos(header[line],'=')-2))) 
@@ -148,7 +148,11 @@ for i=0, n_unique-1 do begin
  if (star_name eq 'HIP54102') then good = where(date lt 2455983.6 or date gt 2455983.8)
  if (star_name eq 'HIP64673') then good = where(date gt 2455985.0)
  if (star_name eq 'HIP74432') then good = where(date gt 2456048.0)
- if (star_name eq 'HIP10175') then good = where(date lt 2457026.0 or date gt 2457028.0)  ; eliminate wrong star
+ if (star_name eq 'HIP10175') then good = where(date lt 2457026.0 or (date gt 2457028.0 and date lt 2457226.9d0) or date gt 2457227.0d0)  ; eliminate wrong star
+ if (star_name eq 'HIP1954') then good = where(date lt 2456206.0 or date gt 2456208.0) ; elimate outlier in RV, SHK, FWHM
+ if (star_name eq 'HIP64673') then good = where((date gt 2455985.0d0 and date lt 2457580.0) or date gt 2457590.0)
+ if (star_name eq 'HIP79672') then good = where(sig lt 0.1)
+ ; eliminate outliers
  date = date[good]
  rv = rv[good]
  sig = sig[good]

@@ -199,7 +199,14 @@ def headers(filelist, outfile='data.csv'):
         
 
 if __name__ == "__main__":
-    data_dir = '/Users/mbedell/Documents/Research/GJ876/'
-    filelist = glob.glob(data_dir+'HARPS*_bis_*_A.fits')
-    headers(filelist, outfile=data_dir+'gj876.csv')
+    #data_dir = '/Users/mbedell/Documents/Research/GJ876/'
+    #filelist = glob.glob(data_dir+'HARPS*_bis_*_A.fits')
+    #headers(filelist, outfile=data_dir+'gj876.csv')
     
+    data_dir = '/Users/mbedell/Documents/Research/HARPSTwins/Data/Reduced/'
+    filelist = np.append(glob.glob(data_dir+'*/HARPS*_bis_*_A.fits'), glob.glob(data_dir+'archive/*/HARPS*_bis_*_A.fits'))
+    filelist = np.append(filelist, glob.glob(data_dir+'18Sco/*/HARPS*_bis_*_A.fits'))
+    print "{0} files found. Reading them now...".format(len(filelist))
+    outfile = '/Users/mbedell/Documents/Research/HARPSTwins/Results/all.csv'
+    headers(filelist, outfile=outfile)
+    print "Results saved to: {0}".format(outfile)
