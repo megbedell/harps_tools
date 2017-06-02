@@ -162,7 +162,7 @@ def headers(filelist, outfile='data.csv'):
     # reads relevant info from fits headers & saves as a csv
     # input is a list of all bis files
     date, obj, bjd, rv, e_rv = [], [], [], [], []
-    exptime, airm, drift = [], [], []
+    exptime, airm, drift, progid = [], [], [], []
     bis, fwhm, s_hk, e_s_hk = [], [], [], []
     for f in filelist:
         b = fits.open(f)
@@ -177,6 +177,7 @@ def headers(filelist, outfile='data.csv'):
         drift = np.append(drift, header['HIERARCH ESO DRS DRIFT SPE RV'])
         bis = np.append(bis, header['HIERARCH ESO DRS BIS SPAN'])
         fwhm = np.append(fwhm, header['HIERARCH ESO DRS CCF FWHM'])
+        progid = np.append(progid, header['HIERARCH ESO OBS PROG ID'])
         # load up the spectrum & measure activity index:
         i = str.find(f, 'bis')
         f2 = f[:i]+'s1d_A.fits'
@@ -191,8 +192,8 @@ def headers(filelist, outfile='data.csv'):
         s_hk_i, e_s_hk_i = shk.calc_shk(wave, flux, rv[-1])
         s_hk = np.append(s_hk, s_hk_i)
         e_s_hk = np.append(e_s_hk, e_s_hk_i)
-    np.savetxt(outfile, np.transpose([date, obj, bjd, rv, e_rv, exptime, airm, drift, bis, fwhm, s_hk, e_s_hk]),
-            header='date, obj, bjd, rv, e_rv, exptime, airm, drift, bis, fwhm, s_hk, e_s_hk', delimiter=',',
+    np.savetxt(outfile, np.transpose([date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk]),
+            header='date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk', delimiter=',',
             fmt='%s')
         
         

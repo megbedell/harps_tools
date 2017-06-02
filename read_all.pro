@@ -12,11 +12,15 @@ filenames = [file_search(data_dir+'*/HARPS*ccf_G2_A.fits'), file_search(data_dir
 ;bad_stars = ['HIP65708','HIP83276','HIP19911','HIP6407','HIP18844','HIP67620','HIP73241','HIP103983']
 
 ;read in some external info about the sample:
-restore,'/Users/mbedell/Documents/Research/HARPSTwins/Data/save.dat'
-HIPname = strcompress(string(long64(c1)),/remove_all)
-HDname = strcompress(string(long64(c2)),/remove_all)
-bvs = c9   ; needed for log(R'HK)
-Teffs = c3   ; needed for jitter prediction
+restore,'/Users/mbedell/Documents/Research/HARPSTwins/ivan_parameters.dat'
+;HIPname = strcompress(string(long64(c1)),/remove_all)
+;HDname = strcompress(string(long64(c2)),/remove_all)
+;bvs = c9   ; needed for log(R'HK)
+;Teffs = c3   ; needed for jitter prediction
+HIPname = strcompress(string(long64(hip)),/remove_all)
+HDname = strcompress(string(long64(hd)),/remove_all)
+bvs = dblarr(n_elements(HIPname)) + 0.66 ; needed for log(R'HK) ; fix this
+Teffs = float(teff)   ; needed for jitter prediction
 
 
 ;retrieve RVs for all data, sorted by date:
@@ -102,6 +106,7 @@ if ((where(names eq 'HD59711A'))[0] ne -1) then names[where(names eq 'HD59711A')
 if ((where(names eq 'HDTE221287'))[0] ne -1) then names[where(names eq 'HDTE221287')] = 'HD221287'
 if ((where(names eq 'HD157347_std'))[0] ne -1) then names[where(names eq 'HD157347_std')] = 'HIP85042'
 if ((where(names eq 'HIP7505'))[0] ne -1) then names[where(names eq 'HIP7505')] = 'HIP7585'
+if ((where(names eq 'HD059967'))[0] ne -1) then names[where(names eq 'HD059967')] = 'HIP36515'
 
 
 for i=0,n_elements(HDname)-1 do begin

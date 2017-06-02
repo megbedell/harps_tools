@@ -3,9 +3,9 @@ PRO harps_bulk_analyze
 dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/'
 savefiles = file_search(dir+'HIP*_result.dat')
 
-openw, u, 'harps_bulk_log.txt', /get_lun
+openw, u, 'harps_bulk_log.csv', /get_lun
 
-printf,u,'HIP','RV RMS (m/s)','# RVs','Time Baseline (yr)','Age (Gyr)','log(R_HK)','SHK corr','BIS corr','FWHM corr','Linear trend','Periodogram peaks (d)',format='(a,15x,a,10x,a,5x,a,5x,a,5x,a,5x,a,7x,a,7x,a,5x,a,5x,a)'
+printf,u,'HIP','RV RMS (m/s)','post-detrending RMS (m/s)','# RVs','# bad RVs removed','Time Baseline (yr)','Age (Gyr)','log(R_HK)','SHK corr','BIS corr','FWHM corr','Linear trend','Periodogram peaks (d)',format="(a,',',a,',',a,',',a,',',a,',',a,',',a,',',a,',',a,',',a,',',a,',',a,',',a)"
 
 for i=0,n_elements(savefiles)-1 do begin
 	starname = strmid(savefiles[i],56,strpos(savefiles[i],'_')-56)
@@ -13,6 +13,7 @@ for i=0,n_elements(savefiles)-1 do begin
 	
 	
 	if (starname eq 31592) then continue
+	if (starname eq 109110) then continue
 	
 	restore,savefiles[i]
 	
@@ -45,6 +46,29 @@ for i=0,n_elements(savefiles)-1 do begin
 
 	sig[where(sig lt 1.0)] = 1.0
 	
+	; if any of the activity measurements are 3-sigma outliers then remove the point(s):
+	;shk_fit = linfit(rv,shk)
+	;shk_resid = shk - (shk_fit[0]+shk_fit[1]*rv)
+	shk_resid = shk - avg(shk)
+	shk_bad = where(abs(shk_resid) gt 3d0*stdev(shk_resid))
+	;fwhm_fit = linfit(rv,fwhm)
+	;fwhm_resid = fwhm - (fwhm_fit[0]+fwhm_fit[1]*rv)
+	fwhm_resid = fwhm - avg(fwhm)
+	fwhm_bad = where(abs(fwhm_resid) gt 3d0*stdev(fwhm_resid))
+	;bis_fit = linfit(rv,bis)
+	;bis_resid = bis - (bis_fit[0]+bis_fit[1]*rv)
+	bis_resid = bis - avg(bis)
+	bis_bad = where(abs(bis_resid) gt 3d0*stdev(bis_resid))
+	superset = [shk_bad, fwhm_bad, bis_bad]
+	bad = superset[Uniq(superset, Sort(superset))]
+	removed = 0
+	foreach b, reverse(bad) do begin
+		if (b ne -1) then begin
+			remove, b, date, rv, sig, shk, shk_err, bis, fwhm
+			removed += 1
+		end
+	endforeach
+	
 	; if there's a significant (non-activity) linear trend then subtract it:
 	
 	linflag=0
@@ -56,7 +80,10 @@ for i=0,n_elements(savefiles)-1 do begin
 		rv = rv - (fit[0]+fit[1]*date)
 	endif
 	
+	; save the uncorrected RMS:
+	rms = stdev(rv)
 	
+	; do activity corrections:
 	shkflag = 0
 	if ((pearson_func(rv,shk))[1] lt 0.05) then begin
 		fit = linfit(shk,rv,measure_errors=sig,sigma=sigslope)
@@ -86,10 +113,11 @@ for i=0,n_elements(savefiles)-1 do begin
 	baseline = (date2[-1] - date2[0])/365.0  ; time baseline in years
 	
 	logrhk2 = logrhk  ; save this because ivan's file will overwrite it
-	restore,'../../ivan_parameters.dat'
+	restore,'/Users/mbedell/Documents/Research/HARPSTwins/ivan_parameters.dat'
 	age = tau[where(hip eq starname)]
+	if (age eq -1) then age = 0.0  ; temporary since Ivan's parameter file doesn't have all the stars
 	
-	printf,u,starname,stdev(rv),n_elements(rv),baseline,age,avg(logrhk2),shkflag,bisflag,fwhmflag,linflag,peak[0],peak[1],peak[2],peak[3],peak[4],format="(i,8x,f8.1,8x,i,8x,f8.1,8x,f8.1,8x,f10.2,8x,i,8x,i,8x,i,8x,i,8x,f8.2,',',f8.2,',',f8.2,',',f8.2,',',f8.2)"
+	printf,u,starname,rms,stdev(rv),n_elements(rv),removed,baseline,age,avg(logrhk2),shkflag,bisflag,fwhmflag,linflag,peak[0],peak[1],peak[2],peak[3],peak[4],format="(i,',',f8.1,',',f8.1,',',i,',',i,',',f8.1,',',f8.1,',',f10.2,',',i,',',i,',',i,',',i,',',f8.2,',',f8.2,',',f8.2,',',f8.2,',',f8.2)"
 	
 
 	
