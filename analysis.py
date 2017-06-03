@@ -68,7 +68,7 @@ class Star:
                                         (self.bis, self.bis_err), (self.shk, self.shk_err)]:
                             if np.sum(m) > 1: # average over good elements
                                 x[i] = np.average(x[ind[m]], weights=dx[ind[m]])
-                                dx[i] = np.std(x[ind[m]])/np.sqrt(len(ind[m])-1.)  # is this correct??
+                                dx[i] = np.std(x[ind[m]])/np.sqrt(len(ind[m])-1.)  # TODO: is this correct??
                             else: # just keep the good element
                                 x[i] = x[ind[m]]
                                 dx[i] = dx[ind[m]]
@@ -92,13 +92,31 @@ class Star:
                         self.mask[b] = 0 
                         #print "masked index {0}".format(b)                  
             
-        def subtract_linear(self):
+        def subtract_linear(self, plot=False):
             # subtract a linear trend
             par0 = calc_line(self.date[0],self.date[-1],self.rv[0],self.rv[-1]) # first guess parameters
             soln = leastsq(linear_resid, par0, args=(self.date[self.mask], self.rv[self.mask], self.sig[self.mask]))
             par = soln[0]
+            if plot:
+                fig,ax = plt.subplots(1,1)
+                self.plot_rv(ax=ax)
+                xs = np.arange(min(self.date), max(self.date), 10.)
+                ax.plot(xs, linear(par, xs))
             self.rv -= linear(par, self.date)
             self.linpar = par
+            
+        def subtract_curve(self, plot=False):
+            # subtract a second-degree polynomial curve
+            par0 = np.ones(3)
+            soln = leastsq(curve_resid, par0, args=(self.date[self.mask], self.rv[self.mask], self.sig[self.mask]))
+            par = soln[0]
+            if plot:
+                fig,ax = plt.subplots(1,1)
+                self.plot_rv(ax=ax)
+                xs = np.arange(min(self.date), max(self.date), 10.)
+                ax.plot(xs, curve(par, xs))
+            self.rv -= curve(par, self.date)
+            self.curvepar = par
             
         def subtract_activity(self, marker_name, errors=True):
             # fit & subtract a linear relation between RV & activity marker marker_name
@@ -133,24 +151,36 @@ def linear(par,x):
 
 def linear_resid(par,x,y,yerr):
     model = linear(par,x)
-    return (y - model)/yerr     
+    return (y - model)/yerr 
+    
+def curve(par,x):
+    return par[0]*x**2 + par[1]*x + par[2]
+    
+def curve_resid(par,x,y,yerr):
+    model = curve(par,x)    
+    return (y - model)/yerr 
   
 
     
 if __name__ == "__main__":
     
-    s = Star('HIP22263')
+    s = Star('HIP14614')
     s.mask_bad()
-    #s.plot_rv()
     s.bin()
-    #s.subtract_linear()
-    #s.plot_rv(ax=plt.gca())
+    s.subtract_curve(plot=True)
     
-    #s.plot_periodogram()
+    s2 = Star('HIP87769')
+    s2.mask_bad()
+    s2.bin()
+    s2.subtract_linear(plot=True)
     
-    plt.errorbar(s.shk, s.rv, yerr=s.sig, xerr=s.shk_err, fmt='o')
-    s.subtract_activity('shk', errors=False)
-    plt.errorbar(s.shk, s.rv, yerr=s.sig, xerr=s.shk_err, fmt='o')
+    s3 = Star('HIP101905')
+    s3.mask_bad()
+    s3.bin()
+    plt.errorbar(s3.shk, s3.rv, yerr=s3.sig, xerr=s3.shk_err, fmt='o')
+    s3.subtract_activity('shk', errors=False)
+    plt.errorbar(s3.shk, s3.rv, yerr=s3.sig, xerr=s3.shk_err, fmt='o')
     
     
+    #s.plot_rv(ax=plt.gca())    
     
