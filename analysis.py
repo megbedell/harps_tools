@@ -6,10 +6,36 @@ from PyAstronomy.pyTiming.pyPeriod import TimeSeries, Gls
 import shk
 from utils import linefit_2derror as lf2d
 
+def calc_line(x0, x1, y0, y1):
+    """" 
+    from two data points (x0, y0), (x1, y1), calculate line parameters
+    returns: [intercept, slope] as np array
+    """
+    slope = (y1 - y0)/(x1 - x0)
+    intercept = y0 - slope*x0
+    return np.asarray([slope, intercept])
+   
+def linear(par,x):
+    return par[0]*x + par[1]
+
+def resid(par,fn,x,y,yerr):
+    model = fn(par,x)
+    return (y - model)/yerr 
+    
+def curve(par,x):
+    return par[0]*x**2 + par[1]*x + par[2]
+     
+def sine(par,x):
+    return par[0] * np.sin(2.*np.pi*x/par[1]) + par[2]
+
 class Star:
         def __init__(self, name, data_dir="/Users/mbedell/Documents/Research/HARPSTwins/Results/"):
             self.name = name
-            s = readsav(data_dir+name+'_result.dat')
+            try:
+                s = readsav(data_dir+name+'_result.dat')
+            except:
+                print "Star {0} not found!".format(name)
+                return
             self.rv = (np.asarray(s.rv) - np.mean(s.rv)) * 1.e3
             self.sig = np.asarray(s.sig) * 1.e3
             self.mask = np.ones(len(self.rv), dtype=bool)
@@ -31,7 +57,7 @@ class Star:
             ax.set_xlabel('BJD')
             ax.set_ylabel(r'RV (m s$^{-1}$)')
             
-        def plot_periodogram(self, logpmin=-1, logpmax=4, y=None, dy=None, ax=None):
+        def plot_periodogram(self, logpmin=-1, logpmax=4, y=None, dy=None, return_peaks=0, ax=None):
             # calculate periodogram
             if y is None:
                 y = self.rv
@@ -49,10 +75,12 @@ class Star:
             ax.set_xscale('log')
             ax.set_xlabel('Period (d)')
             ax.set_ylabel('Power') 
+            if return_peaks > 0:
+                return period_grid[np.argsort(lp.power)[-return_peaks:]]
             
         def bin(self, t=1./3./24.):
             # bin observations by intervals of t days (default 20 minutes)                        
-            if any(s.date != np.sort(s.date)):
+            if any(self.date != np.sort(self.date)):
                 print "data not in order, cannot bin"  # TODO: add sorting capability
                 return
             delete = []
@@ -90,34 +118,30 @@ class Star:
                 for b in bad[0]:
                     if b > -1:
                         self.mask[b] = 0 
-                        #print "masked index {0}".format(b)                  
-            
-        def subtract_linear(self, plot=False):
-            # subtract a linear trend
-            par0 = calc_line(self.date[0],self.date[-1],self.rv[0],self.rv[-1]) # first guess parameters
-            soln = leastsq(linear_resid, par0, args=(self.date[self.mask], self.rv[self.mask], self.sig[self.mask]))
+                        #print "masked index {0}".format(b)
+      
+             
+        def subtract_trend(self, function=linear, plot=False):    
+            if function == linear:
+                par0 = calc_line(self.date[0],self.date[-1],self.rv[0],self.rv[-1]) # first guess parameters
+            elif function == curve:
+                par0 = np.ones(3)
+            elif function == sine:
+                par0 = np.asarray([1.e2, 1.e4, np.mean(self.rv)])
+            else:
+                print "Function not recognized. Acceptable values: linear, curve, sine"
+                return
+            soln = leastsq(resid, par0, args=(function, self.date[self.mask], self.rv[self.mask], self.sig[self.mask]))
             par = soln[0]
             if plot:
                 fig,ax = plt.subplots(1,1)
                 self.plot_rv(ax=ax)
                 xs = np.arange(min(self.date), max(self.date), 10.)
-                ax.plot(xs, linear(par, xs))
-            self.rv -= linear(par, self.date)
-            self.linpar = par
-            
-        def subtract_curve(self, plot=False):
-            # subtract a second-degree polynomial curve
-            par0 = np.ones(3)
-            soln = leastsq(curve_resid, par0, args=(self.date[self.mask], self.rv[self.mask], self.sig[self.mask]))
-            par = soln[0]
-            if plot:
-                fig,ax = plt.subplots(1,1)
-                self.plot_rv(ax=ax)
-                xs = np.arange(min(self.date), max(self.date), 10.)
-                ax.plot(xs, curve(par, xs))
-            self.rv -= curve(par, self.date)
-            self.curvepar = par
-            
+                ax.plot(xs, function(par, xs))
+            self.rv -= function(par, self.date)
+            self.trendtype = str(function)
+            self.trendpar = par
+                             
         def subtract_activity(self, marker_name, errors=True):
             # fit & subtract a linear relation between RV & activity marker marker_name
             valid = ['shk', 'bis', 'fwhm']
@@ -126,8 +150,9 @@ class Star:
             marker = getattr(self, marker_name)
             marker_err = getattr(self, marker_name+'_err')
             # fit:
-            i0, i1 = np.argmax(marker), np.argmin(marker)
-            par0 = calc_line(marker[i0],self.rv[i0],marker[i1],self.rv[i1]) # first guess parameters
+            i0, i1 = np.argmax(marker[self.mask]), np.argmin(marker[self.mask])
+            #par0 = calc_line(marker[i0],marker[i1],self.rv[i0],self.rv[i1]) # first guess parameters
+            par0 = np.zeros(2)
             par = lf2d.bestfit(self.rv[self.mask], self.sig[self.mask], marker[self.mask], marker_err[self.mask], par0=par0)
             # subtract:
             self.rv -= linear(par, marker)
@@ -136,43 +161,19 @@ class Star:
                 par_err = lf2d.emcee_error(self.rv[self.mask], self.sig[self.mask], marker[self.mask], marker_err[self.mask], par0=par)
                 # TODO: inflate errors on sig
                 setattr(self, marker_name+'par_err', par_err)
-            
-def calc_line(x0, x1, y0, y1):
-    """" 
-    from two data points (x0, y0), (x1, y1), calculate line parameters
-    returns: [intercept, slope] as np array
-    """
-    slope = (y1 - y0)/(x1 - x0)
-    intercept = y0 - slope*x0
-    return np.asarray([slope, intercept])
-   
-def linear(par,x):
-    return par[0]*x + par[1]
-
-def linear_resid(par,x,y,yerr):
-    model = linear(par,x)
-    return (y - model)/yerr 
-    
-def curve(par,x):
-    return par[0]*x**2 + par[1]*x + par[2]
-    
-def curve_resid(par,x,y,yerr):
-    model = curve(par,x)    
-    return (y - model)/yerr 
-  
-
+                
     
 if __name__ == "__main__":
     
     s = Star('HIP14614')
     s.mask_bad()
     s.bin()
-    s.subtract_curve(plot=True)
+    s.subtract_trend(function=sine, plot=True)
     
     s2 = Star('HIP87769')
     s2.mask_bad()
     s2.bin()
-    s2.subtract_linear(plot=True)
+    s2.subtract_trend(function=linear, plot=True)
     
     s3 = Star('HIP101905')
     s3.mask_bad()
