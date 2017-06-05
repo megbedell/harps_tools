@@ -20,13 +20,13 @@ if __name__ == "__main__":
     dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/Bulk/'
     outfile = dir+'summary.csv'
     f = open(outfile, 'w')
-    f.write('star, RMS, RMS_corrected, linflag, curveflag, sineflag, shkflag, fwhmflag, bisflag, \
-            rv_peaks, activity_peaks\n')
+    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), candflag, \
+            linflag, curveflag, sineflag, shkflag, fwhmflag, bisflag, rv_peaks, activity_peaks\n')
 	
     for starname in starlist:
         print 'beginning star {0}'.format(starname)
         
-        linflag, curveflag, sineflag, shkflag, fwhmflag, bisflag = False, False, False, False, False, False
+        candflag, linflag, curveflag, sineflag, shkflag, fwhmflag, bisflag = False, False, False, False, False, False, False
         
         s = analysis.Star(starname)
         s.mask_bad()
@@ -34,6 +34,11 @@ if __name__ == "__main__":
             s.bin(t=2./24.) # 2-hour bins
         else:
             s.bin() # 20-minute bins
+            
+        n_harps = len(s.rv)
+        n_stps = np.sum(np.char.find(s.files,'archive') == -1) # where files do not have "archive" in the path
+        n_bad = np.sum(np.invert(s.mask))
+        baseline = (np.max(s.date) - np.min(s.date))/365.
         
         fig1 = plt.figure()
         ax1 = fig1.add_subplot(111)
@@ -62,7 +67,7 @@ if __name__ == "__main__":
                 exec(attr+'flag = True')
                 fig2 = plt.figure()
                 ax2 = fig2.add_subplot(111)
-                peaks = s.plot_periodogram(y=getattr(s,attr), dy=getattr(s,attr+'_err'), ax=ax2, return_peaks=3)
+                peaks = s.plot_periodogram(y=getattr(s,attr), dy=getattr(s,attr+'_err'), ax=ax2, return_peaks=2)
                 activity_peaks = np.append(activity_peaks, peaks)
                 ax2.set_title(starname+' '+attr)
                 fig2.savefig(dir+'fig/'+starname+'_'+attr+'.png')
@@ -76,14 +81,18 @@ if __name__ == "__main__":
         
         fig3 = plt.figure()
         ax3 = fig3.add_subplot(111)
-        rv_peaks = s.plot_periodogram(ax=ax3, return_peaks=5)
+        rv_peaks, fap = s.plot_periodogram(ax=ax3, return_peaks=5, max_fap=True)
+        if fap <= 0.01:
+            candflag = True
         ax3.set_title(starname)
         fig3.savefig(dir+'fig/'+starname+'_periodogram.png')
         plt.close(fig3)
         
-        f.write('{name}, {rms0:.3f}, {rms1:.3f}, {lin}, {curve}, {sine}, {shk}, {fwhm}, {bis}, {rv_peaks}, {activity_peaks}\n'.format(name=starname, 
-                    rms0=rms0, rms1=rms1, lin=linflag, curve=curveflag, sine=sineflag, shk=shkflag, fwhm=fwhmflag,
-                    bis=bisflag, rv_peaks=rv_peaks, activity_peaks=activity_peaks))
+        f.write('{name}, {rms0:.3f}, {rms1:.3f}, {n_stps}, {n_harps}, {n_bad}, {baseline:.1f}, \
+                {cand}, {lin}, {curve}, {sine}, {shk}, {fwhm}, {bis}, {rv_peaks}, {activity_peaks}\n'.format(name=starname, 
+                rms0=rms0, rms1=rms1, cand=candflag, lin=linflag, curve=curveflag, sine=sineflag, shk=shkflag, fwhm=fwhmflag,
+                bis=bisflag, rv_peaks=np.asarray(rv_peaks, dtype='|S8'), activity_peaks=np.asarray(activity_peaks, dtype='|S8'), 
+                n_stps=n_stps, n_harps=n_harps, n_bad=n_bad, baseline=baseline))
         
     print 'done!'
     f.close()

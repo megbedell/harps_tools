@@ -41,7 +41,8 @@ class Star:
             self.mask = np.ones(len(self.rv), dtype=bool)
             self.bis_err = np.asarray(s.sig)  # change these
             self.fwhm_err = np.asarray(s.sig) # change these
-            for a in ['date','shk','bis','fwhm','shk_err']:
+            self.files = np.asarray(s.files, dtype=np.string_)
+            for a in ['date','shk','bis','fwhm','shk_err','airm','exp','logrhk']:
                 setattr(self, a, np.asarray(getattr(s,a)))
                 
         def __repr__(self):
@@ -57,7 +58,7 @@ class Star:
             ax.set_xlabel('BJD')
             ax.set_ylabel(r'RV (m s$^{-1}$)')
             
-        def plot_periodogram(self, logpmin=-1, logpmax=4, y=None, dy=None, return_peaks=0, ax=None):
+        def plot_periodogram(self, logpmin=-1, logpmax=4, y=None, dy=None, return_peaks=0, max_fap=False, ax=None):
             # calculate periodogram
             if y is None:
                 y = self.rv
@@ -76,7 +77,10 @@ class Star:
             ax.set_xlabel('Period (d)')
             ax.set_ylabel('Power') 
             if return_peaks > 0:
-                return period_grid[np.argsort(lp.power)[-return_peaks:]]
+                if max_fap:
+                    return period_grid[np.argsort(lp.power)[-return_peaks:]], lp.stats(np.max(lp.power))['FAP']
+                else:
+                    return period_grid[np.argsort(lp.power)[-return_peaks:]]
             
         def bin(self, t=1./3./24.):
             # bin observations by intervals of t days (default 20 minutes)                        
@@ -92,6 +96,7 @@ class Star:
                     m = self.mask[ind]  # a mini-mask
                     if any(m):  # if there are non-masked elements in the bin...
                         self.date[i] = np.median(self.date[ind[m]])
+                        self.exp[i] = np.sqrt(np.sum(self.exp[ind[m]]**2))
                         for (x,dx) in [(self.rv, self.sig), (self.fwhm, self.fwhm_err), 
                                         (self.bis, self.bis_err), (self.shk, self.shk_err)]:
                             if np.sum(m) > 1: # average over good elements
@@ -106,7 +111,7 @@ class Star:
                 else:
                     i += 1
             delete = np.asarray(delete, dtype=int) # idk why it was float before??
-            for attr in ['date', 'rv', 'sig', 'mask', 'bis', 'bis_err', 'fwhm', 'fwhm_err', 'shk', 'shk_err']:
+            for attr in ['date', 'rv', 'sig', 'mask', 'bis', 'bis_err', 'fwhm', 'fwhm_err', 'shk', 'shk_err', 'airm', 'exp', 'logrhk', 'files']:
                 setattr(self, attr, np.delete(getattr(self,attr), delete))
                     
             

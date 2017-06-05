@@ -5,7 +5,7 @@ PRO read_all
 data_dir = '/Users/mbedell/Documents/Research/HARPSTwins/Data/Reduced/'
 out_dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/'
 
-filenames = [file_search(data_dir+'*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'18Sco/*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'archive/*/HARPS*ccf_G2_A.fits')]
+filenames = [file_search(data_dir+'*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'18Sco_archive/*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'archive/*/HARPS*ccf_G2_A.fits')]
 ;filenames = [file_search(data_dir+'*/HARPS*ccf_G2_A.fits'), file_search(data_dir+'archive/*/HARPS*ccf_G2_A.fits')]
 
 
