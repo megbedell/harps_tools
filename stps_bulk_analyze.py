@@ -6,7 +6,8 @@ from PyAstronomy.pyTiming.pyPeriod import TimeSeries, Gls
 import analysis
 import pdb
 
-starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/stps_starlist.txt', dtype=None)
+#starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/stps_starlist.txt', dtype=None)
+starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/harps_starlist.txt', dtype=None)
 
 linear = ['HIP14501', 'HIP62039', 'HIP87769']
 
@@ -19,8 +20,8 @@ if __name__ == "__main__":
     dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/Bulk/'
     outfile = dir+'summary.csv'
     f = open(outfile, 'w')
-    f.write('star, RMS, RMS_corrected, linflag, curveflag, shkflag, fwhmflag, bisflag, \
-                rv_peak1, rv_peak2, rv_peak3, rv_peak4, rv_peak5\n')
+    f.write('star, RMS, RMS_corrected, linflag, curveflag, sineflag, shkflag, fwhmflag, bisflag, \
+            rv_peaks, activity_peaks\n')
 	
     for starname in starlist:
         print 'beginning star {0}'.format(starname)
@@ -29,7 +30,10 @@ if __name__ == "__main__":
         
         s = analysis.Star(starname)
         s.mask_bad()
-        s.bin()
+        if starname == 'HIP79672':
+            s.bin(t=2./24.) # 2-hour bins
+        else:
+            s.bin() # 20-minute bins
         
         fig1 = plt.figure()
         ax1 = fig1.add_subplot(111)
@@ -51,13 +55,15 @@ if __name__ == "__main__":
         
         s.plot_rv(ax=ax1)
         
+        activity_peaks = []
         for attr in ['shk', 'fwhm', 'bis']:
             if (pearsonr(s.rv, getattr(s,attr))[1] < 0.003): # 3-sigma significant correlation
                 s.subtract_activity(attr, errors=False)  # TODO: add error propagation later
                 exec(attr+'flag = True')
                 fig2 = plt.figure()
                 ax2 = fig2.add_subplot(111)
-                s.plot_periodogram(y=getattr(s,attr), dy=getattr(s,attr+'_err'), ax=ax2)
+                peaks = s.plot_periodogram(y=getattr(s,attr), dy=getattr(s,attr+'_err'), ax=ax2, return_peaks=3)
+                activity_peaks = np.append(activity_peaks, peaks)
                 ax2.set_title(starname+' '+attr)
                 fig2.savefig(dir+'fig/'+starname+'_'+attr+'.png')
                 plt.close(fig2)
@@ -75,9 +81,9 @@ if __name__ == "__main__":
         fig3.savefig(dir+'fig/'+starname+'_periodogram.png')
         plt.close(fig3)
         
-        f.write('{name}, {rms0:.3f}, {rms1:.3f}, {lin}, {curve}, {sine}, {shk}, {fwhm}, {bis}, {rv_peaks}\n'.format(name=starname, 
+        f.write('{name}, {rms0:.3f}, {rms1:.3f}, {lin}, {curve}, {sine}, {shk}, {fwhm}, {bis}, {rv_peaks}, {activity_peaks}\n'.format(name=starname, 
                     rms0=rms0, rms1=rms1, lin=linflag, curve=curveflag, sine=sineflag, shk=shkflag, fwhm=fwhmflag,
-                    bis=bisflag, rv_peaks=rv_peaks))
+                    bis=bisflag, rv_peaks=rv_peaks, activity_peaks=activity_peaks))
         
     print 'done!'
     f.close()
