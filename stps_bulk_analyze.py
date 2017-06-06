@@ -9,11 +9,11 @@ import pdb
 #starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/stps_starlist.txt', dtype=None)
 starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/harps_starlist.txt', dtype=None)
 
-linear = ['HIP14501', 'HIP62039', 'HIP87769']
+linear = ['HIP14501', 'HIP62039', 'HIP87769', 'HIP67620', 'HIP73241', 'HIP103983', 'HIP108158', 'HIP6407', 'HIP18844', 'HIP64150']
 
-curve = []
+curve = ['HIP79578', 'HIP81746', 'HIP19911']
 
-sine = ['HIP14614', 'HIP43297', 'HIP54102', 'HIP72043', 'HIP79578', 'HIP81746']
+sine = ['HIP14614', 'HIP43297', 'HIP54102', 'HIP72043', 'HIP65708']
 
 if __name__ == "__main__":
     
