@@ -2,20 +2,48 @@ import numpy as np
 from numpy import log, exp, pi, sqrt, sin, cos, tan, arctan
 
 def calc_ma(T0, t, period):
+    # calculate mean anomaly
     days = t - T0
     phase = days/period % 1.0
     ma = phase * 2.0 * pi
     return ma
     
 def calc_ea(ma, ecc):
+    # calculate eccentric anomaly from mean anomaly, eccentricity
     tolerance = 1e-3
-    ea = ma
+    ea = np.copy(ma)
     while True:
         diff = ea - ecc * sin(ea) - ma
-        ea -= diff / (1 - ecc * cos(ea))
+        ea -= diff / (1. - ecc * cos(ea))
         if abs(diff).all() <= tolerance:
             break
     return ea
+ 
+    
+def calc_rvs(t,par):
+    '''
+    Calculate RV(t) given par
+    par: [period, K, ecc, omega, M0, offset]
+    where omega is the argument of periastron
+    and Tp is time at periastron
+    '''
+    P,K,ecc,omega,tp,offset = par
+    
+    # enforce boundaries on parameters:
+    #if (P < 0.0 or K < 0.0 or ecc < 0.0 or ecc > 0.999 or omega < 0. or omega > 2.*pi or M0 < 0. or M0 > 2.*pi):
+    #    return np.zeros_like(t)
+    #P = max([0.0, P])
+    #K = max([0.0, K])
+    #ecc = min([max([0.0, ecc]), 0.99])
+    #omega = min([max([-pi, omega]), pi])
+    #M0 = min([max([-pi, M0]), pi])
+    
+    ma = 2. * pi / P * (t - tp)  # mean anomaly
+    ea = calc_ea(ma, ecc)  # eccentric anomaly
+
+    f = 2.0 * np.arctan2(sqrt(1+ecc)*sin(ea/2.0), sqrt(1-ecc)*cos(ea/2.0)) # true anomaly
+    rvs = - K * (cos(omega + f) + ecc*cos(omega))
+    return rvs + offset
 
 
 def calc_ipower(et,t,y,dy,period):

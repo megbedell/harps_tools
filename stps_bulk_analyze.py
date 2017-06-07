@@ -20,13 +20,12 @@ if __name__ == "__main__":
     dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/Bulk/'
     outfile = dir+'summary.csv'
     f = open(outfile, 'w')
-    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), candflag, \
-            linflag, curveflag, sineflag, shkflag, fwhmflag, bisflag, rv_peaks, activity_peaks\n')
+    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), trend, sineflag, shkflag, fwhmflag, bisflag, rv_peaks, activity_peaks\n')
 	
     for starname in starlist:
         print 'beginning star {0}'.format(starname)
         
-        candflag, linflag, curveflag, sineflag, shkflag, fwhmflag, bisflag = False, False, False, False, False, False, False
+        candflag, trend, shkflag, fwhmflag, bisflag = False, '', False, False, False
         
         s = analysis.Star(starname)
         s.mask_bad()
@@ -49,13 +48,17 @@ if __name__ == "__main__":
 
         if starname in linear:
             s.subtract_trend(function=analysis.linear)
-            linflag = True
+            trend = 'linear'
         if starname in curve:
             s.subtract_trend(function=analysis.curve)
-            curveflag = True
+            trend = 'curve'
         if starname in sine:
             s.subtract_trend(function=analysis.sine)
-            sineflag = True
+            trend = 'sine'
+        if starname == 'HIP30037':
+            par0 = np.asarray([31.6, 4244., 0.3, 63. * np.pi/180., 2455841.3, -200.]) # [period, K, ecc, omega, tp, offset]
+            s.subtract_trend(function=analysis.keplerian, par0=par0)
+            trend = 'keplerian'
         rms0 = np.std(s.rv[s.mask])
         
         s.plot_rv(ax=ax1)
@@ -89,8 +92,8 @@ if __name__ == "__main__":
         plt.close(fig3)
         
         f.write('{name}, {rms0:.3f}, {rms1:.3f}, {n_stps}, {n_harps}, {n_bad}, {baseline:.1f}, \
-                {cand}, {lin}, {curve}, {sine}, {shk}, {fwhm}, {bis}, {rv_peaks}, {activity_peaks}\n'.format(name=starname, 
-                rms0=rms0, rms1=rms1, cand=candflag, lin=linflag, curve=curveflag, sine=sineflag, shk=shkflag, fwhm=fwhmflag,
+                {cand}, {trend}, {shk}, {fwhm}, {bis}, {rv_peaks}, {activity_peaks}\n'.format(name=starname, 
+                rms0=rms0, rms1=rms1, cand=candflag, trend=trend, shk=shkflag, fwhm=fwhmflag,
                 bis=bisflag, rv_peaks=np.asarray(rv_peaks, dtype='|S8'), activity_peaks=np.asarray(activity_peaks, dtype='|S8'), 
                 n_stps=n_stps, n_harps=n_harps, n_bad=n_bad, baseline=baseline))
         

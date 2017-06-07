@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from PyAstronomy.pyTiming.pyPeriod import TimeSeries, Gls
 import shk
 from utils import linefit_2derror as lf2d
+import kepler
 
 def calc_line(x0, x1, y0, y1):
     """" 
@@ -27,6 +28,9 @@ def curve(par,x):
      
 def sine(par,x):
     return par[0] * np.sin(2.*np.pi*x/par[1]) + par[2]
+    
+def keplerian(par,x):
+    return kepler.calc_rvs(x, par)
 
 class Star:
         def __init__(self, name, data_dir="/Users/mbedell/Documents/Research/HARPSTwins/Results/"):
@@ -126,22 +130,27 @@ class Star:
                         #print "masked index {0}".format(b)
       
              
-        def subtract_trend(self, function=linear, plot=False):    
-            if function == linear:
-                par0 = calc_line(self.date[0],self.date[-1],self.rv[0],self.rv[-1]) # first guess parameters
-            elif function == curve:
-                par0 = np.ones(3)
-            elif function == sine:
-                par0 = np.asarray([1.e2, 1.e4, np.mean(self.rv)])
-            else:
-                print "Function not recognized. Acceptable values: linear, curve, sine"
+        def subtract_trend(self, function=linear, plot=False, par0=None): 
+            if not par0.any():   
+                if function == linear:
+                    par0 = calc_line(self.date[0],self.date[-1],self.rv[0],self.rv[-1]) # first guess parameters
+                elif function == curve:
+                    par0 = np.ones(3)
+                elif function == sine:
+                    # par0 = [K, period, offset]
+                    par0 = np.asarray([1.e2, 1.e4, np.mean(self.rv)])
+                elif function == keplerian:
+                    # par0 = [period, K, ecc, omega, M0, offset]
+                    par0 = np.asarray([100., 20., 0.0, 0.0, 0.0, np.mean(self.rv)])
+            if function not in [linear, curve, sine, keplerian]:
+                print "Function not recognized. Acceptable values: linear, curve, sine, keplerian"
                 return
             soln = leastsq(resid, par0, args=(function, self.date[self.mask], self.rv[self.mask], self.sig[self.mask]))
             par = soln[0]
             if plot:
                 fig,ax = plt.subplots(1,1)
                 self.plot_rv(ax=ax)
-                xs = np.arange(min(self.date), max(self.date), 10.)
+                xs = np.arange(min(self.date), max(self.date), 1.)
                 ax.plot(xs, function(par, xs))
             self.rv -= function(par, self.date)
             self.trendtype = str(function)
@@ -169,7 +178,7 @@ class Star:
                 
     
 if __name__ == "__main__":
-    
+    '''''
     s = Star('HIP14614')
     s.mask_bad()
     s.bin()
@@ -186,6 +195,17 @@ if __name__ == "__main__":
     plt.errorbar(s3.shk, s3.rv, yerr=s3.sig, xerr=s3.shk_err, fmt='o')
     s3.subtract_activity('shk', errors=False)
     plt.errorbar(s3.shk, s3.rv, yerr=s3.sig, xerr=s3.shk_err, fmt='o')
+    '''
+    
+    s4 = Star('HIP30037')
+    s4.mask_bad()
+    s4.bin()
+    par0 = np.asarray([31.6, 4244., 0.3, 63. * np.pi/180., 2455841.3, -200.]) # [period, K, ecc, omega, tp, offset]
+    #s4.plot_rv()
+    #xs = np.arange(min(s4.date), max(s4.date), 0.1)
+    #plt.plot(xs, kepler.calc_rvs(xs, par0))
+    s4.subtract_trend(function=keplerian, plot=True, par0=par0)
+    
     
     
     #s.plot_rv(ax=plt.gca())    
