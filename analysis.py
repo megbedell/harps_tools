@@ -130,7 +130,7 @@ class Star:
                         #print "masked index {0}".format(b)
       
              
-        def subtract_trend(self, function=linear, plot=False, par0=None): 
+        def subtract_trend(self, function=linear, plot=False, par0=np.zeros(1)): 
             if not par0.any():   
                 if function == linear:
                     par0 = calc_line(self.date[0],self.date[-1],self.rv[0],self.rv[-1]) # first guess parameters
@@ -164,7 +164,7 @@ class Star:
             marker = getattr(self, marker_name)
             marker_err = getattr(self, marker_name+'_err')
             # fit:
-            i0, i1 = np.argmax(marker[self.mask]), np.argmin(marker[self.mask])
+            #i0, i1 = np.argmax(marker[self.mask]), np.argmin(marker[self.mask])
             #par0 = calc_line(marker[i0],marker[i1],self.rv[i0],self.rv[i1]) # first guess parameters
             par0 = np.zeros(2)
             par = lf2d.bestfit(self.rv[self.mask], self.sig[self.mask], marker[self.mask], marker_err[self.mask], par0=par0)
@@ -188,14 +188,24 @@ if __name__ == "__main__":
     s2.mask_bad()
     s2.bin()
     s2.subtract_trend(function=linear, plot=True)
-    
+
     s3 = Star('HIP101905')
     s3.mask_bad()
     s3.bin()
+    print is_correlated(s3.rv, s3.shk)
     plt.errorbar(s3.shk, s3.rv, yerr=s3.sig, xerr=s3.shk_err, fmt='o')
     s3.subtract_activity('shk', errors=False)
+    xs = np.arange(min(s3.shk), max(s3.shk), 0.01)
+    plt.plot(xs, linear(s3.shkpar, xs))
     plt.errorbar(s3.shk, s3.rv, yerr=s3.sig, xerr=s3.shk_err, fmt='o')
-    '''
+    
+    plt.errorbar(s3.bis, s3.rv, yerr=s3.sig, xerr=s3.bis_err, fmt='o')
+    print pearsonr(s3.rv, s3.bis)[1]
+    s3.subtract_activity('bis', errors=False)
+    xs = np.arange(min(s3.bis), max(s3.bis), 0.01)
+    plt.plot(xs, linear(s3.bispar, xs))
+    plt.errorbar(s3.bis, s3.rv, yerr=s3.sig, xerr=s3.bis_err, fmt='o')
+    
     
     s4 = Star('HIP30037')
     s4.mask_bad()
@@ -205,6 +215,26 @@ if __name__ == "__main__":
     #xs = np.arange(min(s4.date), max(s4.date), 0.1)
     #plt.plot(xs, kepler.calc_rvs(xs, par0))
     s4.subtract_trend(function=keplerian, plot=True, par0=par0)
+    
+    '''''
+    
+    
+    s = Star('HIP7585')
+    s.mask_bad()
+    s.bin()
+
+    
+    plt.errorbar(s.fwhm, s.rv, yerr=s.sig, xerr=s.fwhm_err, fmt='o')
+    #s.subtract_activity('fwhm', errors=False)
+    soln = leastsq(resid, np.ones(2), args=(linear, s.fwhm[s.mask], s.rv[s.mask], s.sig[s.mask]))
+    xs = np.arange(min(s.fwhm), max(s.fwhm), 0.01)
+    #par = s.fwhmpar
+    par = soln[0]
+    plt.plot(xs, linear(par, xs))
+    #plt.errorbar(s.fwhm, s.rv, yerr=s.sig, xerr=s.fwhm_err, fmt='o')
+    
+    #soln = leastsq(resid, par0, args=(function, self.date[self.mask], self.rv[self.mask], self.sig[self.mask]))
+
     
     
     

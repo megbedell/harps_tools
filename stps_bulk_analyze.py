@@ -15,12 +15,20 @@ curve = ['HIP79578', 'HIP81746', 'HIP19911']
 
 sine = ['HIP14614', 'HIP43297', 'HIP54102', 'HIP72043', 'HIP65708']
 
+def bootstrap_pearson(x, y, n_trials=10000):
+    trials = np.empty(n_trials)
+    for i in range(n_trials):
+        ind = np.random.choice(len(x), len(x)) # bootstrap indices
+        trials[i] = pearsonr(x[ind],y[ind])[0] 
+    sigma = np.abs(np.mean(trials))/np.std(trials)  # sigma from zero   
+    return np.mean(trials), sigma
+
 if __name__ == "__main__":
     
     dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/Bulk/'
     outfile = dir+'summary.csv'
     f = open(outfile, 'w')
-    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), trend, sineflag, shkflag, fwhmflag, bisflag, rv_peaks, activity_peaks\n')
+    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), candidate, trend, shkflag, fwhmflag, bisflag, rv_peaks, activity_peaks\n')
 	
     for starname in starlist:
         print 'beginning star {0}'.format(starname)
@@ -65,7 +73,7 @@ if __name__ == "__main__":
         
         activity_peaks = []
         for attr in ['shk', 'fwhm', 'bis']:
-            if (pearsonr(s.rv, getattr(s,attr))[1] < 0.003): # 3-sigma significant correlation
+            if (bootstrap_pearson(s.rv, getattr(s,attr))[1] >= 3): # 3-sigma significant correlation
                 s.subtract_activity(attr, errors=False)  # TODO: add error propagation later
                 exec(attr+'flag = True')
                 fig2 = plt.figure()
