@@ -11,7 +11,7 @@ starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figu
 
 linear = ['HIP14501', 'HIP62039', 'HIP87769', 'HIP67620', 'HIP73241', 'HIP103983', 'HIP108158', 'HIP6407', 'HIP18844', 'HIP64150']
 
-curve = ['HIP79578', 'HIP81746', 'HIP19911']
+curve = ['HIP79578', 'HIP81746', 'HIP19911', 'HIP83276']
 
 sine = ['HIP14614', 'HIP43297', 'HIP54102', 'HIP72043', 'HIP65708']
 
@@ -22,14 +22,19 @@ def bootstrap_pearson(x, y, n_trials=10000):
         trials[i] = pearsonr(x[ind],y[ind])[0] 
     sigma = np.abs(np.mean(trials))/np.std(trials)  # sigma from zero   
     return np.mean(trials), sigma
+    
+    
 
 if __name__ == "__main__":
     
     dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/Bulk/'
     outfile = dir+'summary.csv'
     f = open(outfile, 'w')
-    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), candidate, trend, shkflag, fwhmflag, bisflag, rv_peaks, activity_peaks\n')
+    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), candidate, trend, activity correction(s), rotation period from age (d), rotation period from activity (d), rv_peaks, activity_peaks\n')
 	
+    outfile2 = '/Users/mbedell/Documents/Career/Thesis/phd-thesis/chapters/rv_bulk.tex'
+    tbl = open(outfile2, 'w')
+    
     for starname in starlist:
         print 'beginning star {0}'.format(starname)
         
@@ -37,6 +42,11 @@ if __name__ == "__main__":
         
         s = analysis.Star(starname)
         s.mask_bad()
+        s.calc_rotation() # calculate rotation period from isochrone age
+        rotation_age = s.rotation  # save it
+        s.calc_age()  # re-estimate age from logrhk
+        s.calc_rotation()
+        rotation_logrhk = s.rotation
         if starname == 'HIP79672':
             s.bin(t=2./24.) # 2-hour bins
         else:
@@ -71,20 +81,32 @@ if __name__ == "__main__":
         
         s.plot_rv(ax=ax1)
         
-        activity_peaks = []
+        activity_peaks = ''
         for attr in ['shk', 'fwhm', 'bis']:
             if (bootstrap_pearson(s.rv, getattr(s,attr))[1] >= 3): # 3-sigma significant correlation
                 s.subtract_activity(attr, errors=False)  # TODO: add error propagation later
                 exec(attr+'flag = True')
                 fig2 = plt.figure()
                 ax2 = fig2.add_subplot(111)
-                peaks = s.plot_periodogram(y=getattr(s,attr), dy=getattr(s,attr+'_err'), ax=ax2, return_peaks=2)
-                activity_peaks = np.append(activity_peaks, peaks)
+                peaks, faps = s.periodogram(y=getattr(s,attr), dy=getattr(s,attr+'_err'), plot=True, ax=ax2, return_peaks=2)
+                '''''
+                if len(activity_peaks) == 0:
+                    activity_peaks += '{0:.2f}, {1:.2f}'.format(peaks[0], peaks[1])
+                else:
+                    activity_peaks += '; {0:.2f}, {1:.2f}'.format(peaks[0], peaks[1])
+                '''
+                if len(activity_peaks) == 0:
+                    activity_peaks += '{0:.2f}, {1:.2f}'.format(peaks[0], peaks[1])
+                else:
+                    activity_peaks += ', {0:.1f}'.format(peaks[0])
                 ax2.set_title(starname+' '+attr)
                 fig2.savefig(dir+'fig/'+starname+'_'+attr+'.png')
                 plt.close(fig2)
         
-        rms1 = np.std(s.rv[s.mask])
+        if shkflag or fwhmflag or bisflag:
+            rms1 = '{0:.1f}'.format(np.std(s.rv[s.mask]))
+        else:
+            rms1 = ''
 
         s.plot_rv(ax=ax1)
         fig1.savefig(dir+'fig/'+starname+'.png')
@@ -92,19 +114,57 @@ if __name__ == "__main__":
         
         fig3 = plt.figure()
         ax3 = fig3.add_subplot(111)
-        rv_peaks, fap = s.plot_periodogram(ax=ax3, return_peaks=5, max_fap=True)
-        if fap <= 0.01:
-            candflag = True
+        peaks, faps = s.periodogram(ax=ax3, return_peaks=10, plot=True)
+        
+        p_ind = np.where(faps <= 0.01)[0]
+        rv_peaks = ''
+        if len(p_ind) > 0:
+            rv_peaks += '{0:.1f}'.format(peaks[p_ind[-1]])
+            for i in range(1, min(len(p_ind),3)):  # max of 3 significant periods
+                rv_peaks += ', {0:.1f}'.format(peaks[p_ind[-i-1]])
+        if len(p_ind) > 3:
+            rv_peaks += ', ...'
+                
         ax3.set_title(starname)
         fig3.savefig(dir+'fig/'+starname+'_periodogram.png')
         plt.close(fig3)
         
-        f.write('{name}, {rms0:.3f}, {rms1:.3f}, {n_stps}, {n_harps}, {n_bad}, {baseline:.1f}, \
-                {cand}, {trend}, {shk}, {fwhm}, {bis}, {rv_peaks}, {activity_peaks}\n'.format(name=starname, 
-                rms0=rms0, rms1=rms1, cand=candflag, trend=trend, shk=shkflag, fwhm=fwhmflag,
-                bis=bisflag, rv_peaks=np.asarray(rv_peaks, dtype='|S8'), activity_peaks=np.asarray(activity_peaks, dtype='|S8'), 
-                n_stps=n_stps, n_harps=n_harps, n_bad=n_bad, baseline=baseline))
+        activity = ''
+        if shkflag: activity += 'shk'
+        if fwhmflag:
+            if len(activity) > 0:
+                activity += ', fwhm'
+            else:
+                activity += 'fwhm'
+        if bisflag:
+            if len(activity) > 0:
+                activity += ', bis'
+            else:
+                activity += 'bis'
+        
+        f.write('{name}, {rms0:.1f}, {rms1}, {n_stps}, {n_harps}, {n_bad}, {baseline:.1f}, \
+                {cand}, {trend}, {activity}, {rotation_age:.1f}, {rotation_logrhk:.1f}, \
+                {rv_peaks}, {activity_peaks}\n'.format(name=starname, 
+                rms0=rms0, rms1=rms1, cand=candflag, trend=trend, activity=activity,
+                rv_peaks=rv_peaks, activity_peaks=activity_peaks, 
+                n_stps=n_stps, n_harps=n_harps, n_bad=n_bad, baseline=baseline, rotation_age=rotation_age, 
+                rotation_logrhk=rotation_logrhk))
+        
+        tbl.write('{name} & {n_harps} & {trend} & {rms0:.1f} & {activity} & {rms1} & {activity_peaks} & {rotation_age:.1f} & \
+        {rotation_logrhk:.1f} & {rv_peaks}  \\\ \n'.format(
+            name=starname[3:], rms0=rms0, rms1=rms1, trend=trend, activity=activity,
+            rotation_age=rotation_age, rotation_logrhk=rotation_logrhk, rv_peaks=rv_peaks, 
+            activity_peaks=activity_peaks, n_harps=n_harps))
+
+        print('{name} & {n_harps} & {trend} & {rms0:.1f} & {activity} & {rms1} & {activity_peaks} & {rotation_age:.1f} & \
+        {rotation_logrhk:.1f} & {rv_peaks}  \\\ \n'.format(
+            name=starname[3:], rms0=rms0, rms1=rms1, trend=trend, activity=activity,
+            rotation_age=rotation_age, rotation_logrhk=rotation_logrhk, rv_peaks=rv_peaks, 
+            activity_peaks=activity_peaks, n_harps=n_harps))
         
     print 'done!'
     f.close()
+    tbl.close()
+
+        
         

@@ -35,6 +35,7 @@ def keplerian(par,x):
 class Star:
         def __init__(self, name, data_dir="/Users/mbedell/Documents/Research/HARPSTwins/Results/"):
             self.name = name
+            # set HARPS data:
             try:
                 s = readsav(data_dir+name+'_result.dat')
             except:
@@ -48,9 +49,47 @@ class Star:
             self.files = np.asarray(s.files, dtype=np.string_)
             for a in ['date','shk','bis','fwhm','shk_err','airm','exp','logrhk']:
                 setattr(self, a, np.asarray(getattr(s,a)))
+            
+            # set additional stellar parameters:    
+            starpar = np.genfromtxt('/Users/mbedell/Documents/Research/HARPSTwins/Abundances/All/ages_alpha_both_keep.csv',
+                         delimiter=',', dtype=None, names=True)
+            self.bv = 0.66 # TODO: read this in
+            try:
+                par_ind = np.where(starpar['id'] == name)[0][0]  # indexing will fail if not found
+                self.age = starpar['age_mean'][par_ind]
+            except:
+                print "Note: parameters not found for star {0}".format(name)
+                self.age = None
                 
         def __repr__(self):
             return "Star object with name = {0}, n_data = {1}".format(self.name, len(self.rv))
+            
+        def calc_age(self):
+            '''
+            Uses Mamajek & Hillenbrand 2008, ApJ, 687, 1264
+            Returns: estimated age (Gyr)
+            '''
+            logrhk = np.median(self.logrhk[self.mask])
+            log_age = -38.053 - 17.912 * logrhk - 1.6675 * logrhk**2.
+            age = 10.**(log_age) / 1.e9
+            self.age = age
+                    
+        def calc_rotation(self):
+            '''
+            Uses Mamajek & Hillenbrand 2008, ApJ, 687, 1264
+            Returns: estimated rotation period (days)
+            '''
+            if self.age == None:
+                self.calc_age()
+        
+            a = 0.407
+            b = 0.325
+            c = 0.495
+            n = 0.566
+    
+            age = self.age * 1000. # in Myr
+            period = a * (self.bv - c)**b * age**n
+            self.rotation = period
             
         def plot_rv(self, ax=None):
             # RV time-series plot
@@ -62,7 +101,7 @@ class Star:
             ax.set_xlabel('BJD')
             ax.set_ylabel(r'RV (m s$^{-1}$)')
             
-        def plot_periodogram(self, logpmin=-1, logpmax=4, y=None, dy=None, return_peaks=0, max_fap=False, ax=None):
+        def periodogram(self, logpmin=-1, logpmax=4, y=None, dy=None, return_peaks=1, plot=True, ax=None):
             # calculate periodogram
             if y is None:
                 y = self.rv
@@ -72,19 +111,33 @@ class Star:
             freq_grid = 1.0/period_grid
             lc = TimeSeries(self.date[self.mask], y[self.mask], dy[self.mask])
             lp = Gls(lc, ofac=10, hifac=1, freq=freq_grid)
-            if ax is None:
-                fig,ax = plt.subplots(1,1)
-            ax.plot(period_grid, lp.power)
-            ax.axhline(lp.powerLevel(0.1))
-            ax.axhline(lp.powerLevel(0.01))
-            ax.set_xscale('log')
-            ax.set_xlabel('Period (d)')
-            ax.set_ylabel('Power') 
-            if return_peaks > 0:
-                if max_fap:
-                    return period_grid[np.argsort(lp.power)[-return_peaks:]], lp.stats(np.max(lp.power))['FAP']
-                else:
-                    return period_grid[np.argsort(lp.power)[-return_peaks:]]
+            # plot it:
+            if plot:
+                if ax is None:
+                    fig,ax = plt.subplots(1,1)
+                ax.plot(period_grid, lp.power)
+                ax.axhline(lp.powerLevel(0.1))
+                ax.axhline(lp.powerLevel(0.01))
+                ax.set_xscale('log')
+                ax.set_xlabel('Period (d)')
+                ax.set_ylabel('Power') 
+            # locate the highest peaks:
+            ind_sorted = np.argsort(lp.power)[::-1] # max power to min power by index
+            i = 0
+            periods, faps = [], []
+            for j in ind_sorted:
+                if i == return_peaks:
+                    break
+                if (j == len(period_grid)-1 or j == 0): # avoid breaking on boundaries
+                    periods = np.append(periods, period_grid[j])
+                    faps = np.append(faps, lp.stats(lp.power[j])['FAP'])
+                    i += 1
+                    continue
+                if (lp.power[j] >= lp.power[j - 1] and lp.power[j] >= lp.power[j + 1]):
+                    periods = np.append(periods, period_grid[j])
+                    faps = np.append(faps, lp.stats(lp.power[j])['FAP'])
+                    i += 1
+            return np.asarray(periods), np.asarray(faps)
             
         def bin(self, t=1./3./24.):
             # bin observations by intervals of t days (default 20 minutes)                        
