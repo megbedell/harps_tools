@@ -9,11 +9,11 @@ import pdb
 #starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/stps_starlist.txt', dtype=None)
 starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/harps_starlist.txt', dtype=None)
 
-linear = ['HIP14501', 'HIP62039', 'HIP87769', 'HIP67620', 'HIP73241', 'HIP103983', 'HIP108158', 'HIP6407', 'HIP18844', 'HIP64150']
+linear = ['HIP14501', 'HIP62039', 'HIP87769', 'HIP73241', 'HIP103983', 'HIP108158', 'HIP6407', 'HIP18844', 'HIP64150']
 
 curve = ['HIP79578', 'HIP81746', 'HIP19911', 'HIP83276']
 
-sine = ['HIP14614', 'HIP43297', 'HIP54102', 'HIP72043', 'HIP65708']
+sine = ['HIP14614', 'HIP43297', 'HIP54102', 'HIP72043', 'HIP65708', 'HIP67620']
 
 def bootstrap_pearson(x, y, n_trials=10000):
     trials = np.empty(n_trials)
@@ -30,12 +30,15 @@ if __name__ == "__main__":
     dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/Bulk/'
     outfile = dir+'summary.csv'
     f = open(outfile, 'w')
-    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), candidate, trend, activity correction(s), rotation period from age (d), rotation period from activity (d), rv_peaks, activity_peaks\n')
+    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), logrhk, candidate, trend, activity correction(s), rotation period from age (d), rotation period from activity (d)\n')
 	
     outfile2 = '/Users/mbedell/Documents/Career/Thesis/phd-thesis/chapters/rv_bulk.tex'
     tbl = open(outfile2, 'w')
     
-    for starname in starlist:
+    rms_change = []
+    rms_percentchange = []
+    
+    for n,starname in enumerate(starlist):
         print 'beginning star {0}'.format(starname)
         
         candflag, trend, shkflag, fwhmflag, bisflag = False, '', False, False, False
@@ -105,6 +108,8 @@ if __name__ == "__main__":
         
         if shkflag or fwhmflag or bisflag:
             rms1 = '{0:.1f}'.format(np.std(s.rv[s.mask]))
+            rms_change = np.append(rms_change, np.std(s.rv[s.mask]) - rms0)
+            rms_percentchange = np.append(rms_change, (np.std(s.rv[s.mask]) - rms0)/rms0)            
         else:
             rms1 = ''
 
@@ -119,14 +124,16 @@ if __name__ == "__main__":
         p_ind = np.where(faps <= 0.01)[0]
         rv_peaks = ''
         if len(p_ind) > 0:
-            rv_peaks += '{0:.1f}'.format(peaks[p_ind[-1]])
+            rv_peaks += '{0:.1f}'.format(peaks[p_ind[0]])
             for i in range(1, min(len(p_ind),3)):  # max of 3 significant periods
-                rv_peaks += ', {0:.1f}'.format(peaks[p_ind[-i-1]])
+                rv_peaks += ', {0:.1f}'.format(peaks[p_ind[i]])
         if len(p_ind) > 3:
             rv_peaks += ', ...'
                 
         ax3.set_title(starname)
         fig3.savefig(dir+'fig/'+starname+'_periodogram.png')
+        
+
         plt.close(fig3)
         
         activity = ''
@@ -142,11 +149,10 @@ if __name__ == "__main__":
             else:
                 activity += 'bis'
         
-        f.write('{name}, {rms0:.1f}, {rms1}, {n_stps}, {n_harps}, {n_bad}, {baseline:.1f}, \
-                {cand}, {trend}, {activity}, {rotation_age:.1f}, {rotation_logrhk:.1f}, \
-                {rv_peaks}, {activity_peaks}\n'.format(name=starname, 
+        f.write('{name}, {rms0:.1f}, {rms1}, {n_stps}, {n_harps}, {n_bad}, {baseline:.1f}, {logrhk}, \
+                {cand}, {trend}, {activity}, {rotation_age:.1f}, {rotation_logrhk:.1f}, \n'.format(name=starname, 
                 rms0=rms0, rms1=rms1, cand=candflag, trend=trend, activity=activity,
-                rv_peaks=rv_peaks, activity_peaks=activity_peaks, 
+                logrhk=np.mean(s.logrhk), 
                 n_stps=n_stps, n_harps=n_harps, n_bad=n_bad, baseline=baseline, rotation_age=rotation_age, 
                 rotation_logrhk=rotation_logrhk))
         
@@ -156,15 +162,23 @@ if __name__ == "__main__":
             rotation_age=rotation_age, rotation_logrhk=rotation_logrhk, rv_peaks=rv_peaks, 
             activity_peaks=activity_peaks, n_harps=n_harps))
 
+        '''''
         print('{name} & {n_harps} & {trend} & {rms0:.1f} & {activity} & {rms1} & {activity_peaks} & {rotation_age:.1f} & \
         {rotation_logrhk:.1f} & {rv_peaks}  \\\ \n'.format(
             name=starname[3:], rms0=rms0, rms1=rms1, trend=trend, activity=activity,
             rotation_age=rotation_age, rotation_logrhk=rotation_logrhk, rv_peaks=rv_peaks, 
             activity_peaks=activity_peaks, n_harps=n_harps))
+        '''
         
     print 'done!'
     f.close()
     tbl.close()
+    
+    print "{0} stars have RMS reduced by an average of {1:.1f} m/s or {2:.0f} percent after activity correction".format(np.sum(rms_change < 0.0), \
+            - np.mean(rms_change[rms_change < 0.0]), - np.mean(rms_percentchange[rms_percentchange < 0.0] * 100.))
+    print "{0} stars have RMS increased by an average of {1:.1f} m/s or {2:.0f} percent after activity correction".format(np.sum(rms_change > 0.0), \
+            - np.mean(rms_change[rms_change > 0.0]), np.mean(rms_percentchange[rms_percentchange > 0.0] * 100.))
+    
 
         
         
