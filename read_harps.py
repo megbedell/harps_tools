@@ -2,6 +2,7 @@ import numpy as np
 from astropy.io import fits
 import glob
 import shk
+from starchive import identifiers
 
 def read_spec(spec_file):
     '''Read a HARPS 1D spectrum file from the ESO pipeline
@@ -56,7 +57,7 @@ def read_spec_2d(spec_file, blaze=False, flat=False):
         ww = fits.open(path+wave_file)
         wave = ww[0].data
     except:
-        print "Wavelength solution file {0} not found!".format(wave_file)
+        print("Wavelength solution file {0} not found!".format(wave_file))
         return
     if blaze:
         blaze_file = header['HIERARCH ESO DRS BLAZE FILE']
@@ -163,7 +164,7 @@ def headers(filelist, outfile='data.csv'):
     # input is a list of all bis files
     date, obj, bjd, rv, e_rv = [], [], [], [], []
     exptime, airm, drift, progid = [], [], [], []
-    bis, fwhm, s_hk, e_s_hk = [], [], [], []
+    bis, fwhm, s_hk, e_s_hk, snr = [], [], [], [], []
     for f in filelist:
         b = fits.open(f)
         header = b[0].header
@@ -178,6 +179,7 @@ def headers(filelist, outfile='data.csv'):
         bis = np.append(bis, header['HIERARCH ESO DRS BIS SPAN'])
         fwhm = np.append(fwhm, header['HIERARCH ESO DRS CCF FWHM'])
         progid = np.append(progid, header['HIERARCH ESO OBS PROG ID'])
+        snr = np.append(snr, header['HIERARCH ESO DRS SPE EXT SN65'])
         # load up the spectrum & measure activity index:
         i = str.find(f, 'bis')
         f2 = f[:i]+'s1d_A.fits'
@@ -192,9 +194,49 @@ def headers(filelist, outfile='data.csv'):
         s_hk_i, e_s_hk_i = shk.calc_shk(wave, flux, rv[-1])
         s_hk = np.append(s_hk, s_hk_i)
         e_s_hk = np.append(e_s_hk, e_s_hk_i)
-    np.savetxt(outfile, np.transpose([date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk]),
-            header='date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk', delimiter=',',
+    np.savetxt(outfile, np.transpose([filelist, date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk, snr]),
+            header='filename, date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk, snr', delimiter=',',
             fmt='%s')
+    return [filelist, date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk, snr]
+                
+def single_star_data(hipname, header_data, conv=None):
+    # takes a star name in format 'HIPx', applies cuts to header_data to select only that star
+    [filelist, date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk] = header_data
+    # selection mask
+    if conv is None:
+        conv = identifiers.Converter()
+    hipno = int(hipname[3:])
+    hdno = conv.hiptohd(hip_number)
+    hdname = 'HD' + str(hdno)
+    mask = [str.replace(o, '-', '') in [hipname, hdname] for o in obj]
+    if hipname == 'HIP79672': # special case
+        mask[obj == '18_Sco'] = True
+        mask[obj == '18Sco'] = True
+    elif hipname == 'HIP36512':
+        mask[obj == 'HD59711A'] = True
+    elif hipname == 'HD221287':
+        mask[obj == 'HDTE221287'] = True
+    elif hipname == 'HIP85042':
+        mask[obj == 'HD157347_std'] = True
+    elif hipname == 'HIP7585':
+        mask[obj == 'HIP7505'] = True
+    elif hipname == 'HIP36515':
+        mask[obj == 'HD059967'] = True
+    # select
+    star_data = [0. for i in range(len(header_data))] # initialize
+    for i,x in enumerate(header_data):
+        star_data[i] = x[mask]
+    return star_data
+        
+def write_systemic(bjd, rv, e_rv, starname='star', starmass=1.0, systemic_dir='/Applications/Systemic/datafiles/'):
+    # takes lists/arrays of data for a star, writes out Systemic files
+    vels_file = systemic_dir+starname+'.vels'
+    with open(vels_file, 'w') as f:
+        for i in range(len(bjd)):
+            f.write('{0:16.8f}    {1:10.3f}    {2:5.3f}    \n'.format(bjd[i], rv[i], e_rv[i]))
+    with open(systemic_dir+starname+'.sys', 'w') as f:
+        f.write('Data  {{\n	RV[] "{vels_file}"\n}}\n"{starname}" {{    \n  Mass  {starmass} \n}}'.format())            
+    
         
         
         
@@ -204,10 +246,21 @@ if __name__ == "__main__":
     #filelist = glob.glob(data_dir+'HARPS*_bis_*_A.fits')
     #headers(filelist, outfile=data_dir+'gj876.csv')
     
-    data_dir = '/Users/mbedell/Documents/Research/HARPSTwins/Data/Reduced/'
-    filelist = np.append(glob.glob(data_dir+'*/HARPS*_bis_*_A.fits'), glob.glob(data_dir+'archive/*/HARPS*_bis_*_A.fits'))
-    filelist = np.append(filelist, glob.glob(data_dir+'18Sco_archive/*/HARPS*_bis_*_A.fits'))
-    print "{0} files found. Reading them now...".format(len(filelist))
-    outfile = '/Users/mbedell/Documents/Research/HARPSTwins/Results/all.csv'
-    headers(filelist, outfile=outfile)
-    print "Results saved to: {0}".format(outfile)
+    #data_dir = '/Users/mbedell/Documents/Research/HARPSTwins/Data/Reduced/'
+    #filelist = np.append(glob.glob(data_dir+'*/HARPS*_bis_*_A.fits'), glob.glob(data_dir+'archive/*/HARPS*_bis_*_A.fits'))
+    #filelist = np.append(filelist, glob.glob(data_dir+'18Sco_archive/*/HARPS*_bis_*_A.fits'))
+    #print "{0} files found. Reading them now...".format(len(filelist))
+    #outfile = '/Users/mbedell/Documents/Research/HARPSTwins/Results/all.csv'
+    #headers(filelist, outfile=outfile)
+    #print "Results saved to: {0}".format(outfile)
+    
+    data_dir = '/Users/mbedell/Documents/Research/Lorenzo-binaries/data/'
+    filelist = glob.glob(data_dir+'HARPS*_bis_*_A.fits')
+    print("{0} files found. Reading them now...".format(len(filelist)))
+    outfile = '/Users/mbedell/Documents/Research/Lorenzo-binaries/all.csv'
+    data = headers(filelist, outfile=outfile)
+    print("Results saved to: {0}".format(outfile))
+    
+    
+    
+    
