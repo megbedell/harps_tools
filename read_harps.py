@@ -52,7 +52,12 @@ def read_spec_2d(spec_file, blaze=False, flat=False):
     sp = fits.open(spec_file)
     header = sp[0].header
     flux = sp[0].data
-    wave_file = header['HIERARCH ESO DRS CAL TH FILE']
+    try:
+        wave_file = header['HIERARCH ESO DRS CAL TH FILE']
+    except KeyError: # HARPS-N
+        wave_file = header['HIERARCH TNG DRS CAL TH FILE']
+    wave_file = str.replace(wave_file, 'e2ds', 'wave') # just in case of header mistake..
+                                                       # ex. HARPS.2013-03-13T09:20:00.346_ccf_M2_A.fits
     try:
         ww = fits.open(path+wave_file)
         wave = ww[0].data
@@ -136,7 +141,7 @@ def read_wavepar(filename):
 
 
 def read_snr(filename):
-    '''Parse SNR from header of a HARPS file from the ESO pipeline
+    '''Parse wavelength solution on a HARPS file from the ESO pipeline
 
     Parameters
     ----------
@@ -151,17 +156,20 @@ def read_snr(filename):
     sp = fits.open(filename)
     header = sp[0].header
     
-    #n_orders = header['NAXIS2']
     n_orders = 72
     snr = np.arange(n_orders, dtype=np.float)
     for i in np.nditer(snr, op_flags=['readwrite']):
-        i[...] = header['HIERARCH ESO DRS SPE EXT SN{0}'.format(str(int(i)))]
+        try:
+            i[...] = header['HIERARCH ESO DRS SPE EXT SN{0}'.format(str(int(i)))]
+        except: # if HARPS-N
+            i[...] = header['HIERARCH TNG DRS SPE EXT SN{0}'.format(str(int(i)))]
     return snr
 
 
-def headers(filelist, outfile='data.csv'):
+def headers(filelist, outfile='data.csv', offset=(15.4,0.4)):
     # reads relevant info from fits headers & saves as a csv
     # input is a list of all bis files
+    # offset is the amount of change in RV after the 2015 isntrument upgrade
     date, obj, bjd, rv, e_rv = [], [], [], [], []
     exptime, airm, drift, progid = [], [], [], []
     bis, fwhm, s_hk, e_s_hk, snr = [], [], [], [], []
@@ -171,7 +179,7 @@ def headers(filelist, outfile='data.csv'):
         date = np.append(date, header['DATE'])
         obj = np.append(obj, header['OBJECT'])
         bjd = np.append(bjd, header['HIERARCH ESO DRS BJD'])
-        rv = np.append(rv, header['HIERARCH ESO DRS CCF RVC'])
+        rv = np.append(rv, header['HIERARCH ESO DRS CCF RVC'] * 1e3) # m/s
         e_rv = np.append(e_rv, header['HIERARCH ESO DRS DVRMS'])
         exptime = np.append(exptime, header['EXPTIME'])
         airm = np.append(airm, header['HIERARCH ESO TEL AIRM START'])
@@ -180,6 +188,10 @@ def headers(filelist, outfile='data.csv'):
         fwhm = np.append(fwhm, header['HIERARCH ESO DRS CCF FWHM'])
         progid = np.append(progid, header['HIERARCH ESO OBS PROG ID'])
         snr = np.append(snr, header['HIERARCH ESO DRS SPE EXT SN65'])
+        # adjust for instrument upgrade:
+        if np.float(bjd[-1]) > 2457218.5:
+            rv[-1] = rv[-1] - offset[0]
+            e_rv[-1] = np.sqrt(e_rv[-1]**2 + offset[1]**2)
         # load up the spectrum & measure activity index:
         i = str.find(f, 'bis')
         f2 = f[:i]+'s1d_A.fits'
@@ -191,7 +203,7 @@ def headers(filelist, outfile='data.csv'):
         index = np.arange(n_wave, dtype=np.float64)
         wave = crval1 + index*cdelt1
         flux = sp[0].data
-        s_hk_i, e_s_hk_i = shk.calc_shk(wave, flux, rv[-1])
+        s_hk_i, e_s_hk_i = shk.calc_shk(wave, flux, rv[-1] / 1e3)
         s_hk = np.append(s_hk, s_hk_i)
         e_s_hk = np.append(e_s_hk, e_s_hk_i)
     np.savetxt(outfile, np.transpose([filelist, date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk, snr]),
@@ -254,11 +266,11 @@ if __name__ == "__main__":
     #headers(filelist, outfile=outfile)
     #print "Results saved to: {0}".format(outfile)
     
-    data_dir = '/Users/mbedell/Documents/Research/Lorenzo-binaries/data/'
+    data_dir = '/Users/mbedell/python/tesstwin/data/HARPS/'
     filelist = glob.glob(data_dir+'HARPS*_bis_*_A.fits')
     print("{0} files found. Reading them now...".format(len(filelist)))
-    outfile = '/Users/mbedell/Documents/Research/Lorenzo-binaries/all.csv'
-    data = headers(filelist, outfile=outfile)
+    outfile = '/Users/mbedell/python/tesstwin/data/harps_rvs.csv'
+    data = headers(filelist, outfile=outfile, offset=(0.0,0.0))
     print("Results saved to: {0}".format(outfile))
     
     

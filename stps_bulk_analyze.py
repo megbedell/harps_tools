@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 from PyAstronomy.pyTiming.pyPeriod import TimeSeries, Gls
 import analysis
 import pdb
+import read_harps
 
 #starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/stps_starlist.txt', dtype=None)
 starlist = np.genfromtxt('/Users/mbedell/Documents/Career/Thesis/phd-thesis/figures/rv_results/harps_starlist.txt', dtype=None)
 
 linear = ['HIP14501', 'HIP62039', 'HIP87769', 'HIP73241', 'HIP103983', 'HIP108158', 'HIP6407', 'HIP18844', 'HIP64150']
 
-curve = ['HIP79578', 'HIP81746', 'HIP19911', 'HIP83276']
+curve = ['HIP79578', 'HIP81746', 'HIP19911', 'HIP83276', 'HIP54582']
 
 sine = ['HIP14614', 'HIP43297', 'HIP54102', 'HIP72043', 'HIP65708', 'HIP67620']
 
@@ -30,9 +31,9 @@ if __name__ == "__main__":
     dir = '/Users/mbedell/Documents/Research/HARPSTwins/Results/Bulk/'
     outfile = dir+'summary.csv'
     f = open(outfile, 'w')
-    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, baseline (yr), logrhk, candidate, trend, activity correction(s), rotation period from age (d), rotation period from activity (d)\n')
+    f.write('star, RMS, RMS_corrected, n_stps, n_harps, n_bad, snr, baseline (yr), logrhk, candidate, trend, activity correction(s), rotation period from age (d), rotation period from activity (d)\n')
 	
-    outfile2 = '/Users/mbedell/Documents/Career/Thesis/phd-thesis/chapters/rv_bulk.tex'
+    outfile2 = dir+'rv_bulk.tex'
     tbl = open(outfile2, 'w')
     
     rms_change = []
@@ -59,6 +60,14 @@ if __name__ == "__main__":
         n_stps = np.sum(np.char.find(s.files,'archive') == -1) # where files do not have "archive" in the path
         n_bad = np.sum(np.invert(s.mask))
         baseline = (np.max(s.date) - np.min(s.date))/365.
+        
+        # estimate the co-added SNR:
+        s.snr = np.zeros(len(s.files))
+        for i,file in enumerate(s.files):
+            snrs = read_harps.read_snr(file)
+            s.snr[i] = snrs[59]  # approx 600 nm - see read_harps.read_wavepar(file)
+        est_snr = np.sqrt(np.sum(s.snr**2.)) # add in quadrature
+        
         
         fig1 = plt.figure()
         ax1 = fig1.add_subplot(111)
@@ -148,19 +157,29 @@ if __name__ == "__main__":
                 activity += ', bis'
             else:
                 activity += 'bis'
+                
+        if len(activity) == 0:
+            # mark as quiet
+            tbl.write('{name} & {n_harps} & {trend} & {rms0:.1f} & {activity} & {rms1} & {activity_peaks} & {rotation_age:.1f} & \
+            {rotation_logrhk:.1f} & {rv_peaks}  \\\ \n'.format(
+                name=starname[3:], rms0=rms0, rms1=rms1, trend=trend, activity=activity,
+                rotation_age=rotation_age, rotation_logrhk=rotation_logrhk, rv_peaks=rv_peaks, 
+                activity_peaks=activity_peaks, n_harps=n_harps))
+        else:
+            tbl.write('{name} & {n_harps} & {trend} & {rms0:.1f} & {activity} & {rms1} & {activity_peaks} & {rotation_age:.1f} & \
+            {rotation_logrhk:.1f} & {rv_peaks}  \\\ \n'.format(
+                name=starname[3:], rms0=rms0, rms1=rms1, trend=trend, activity=activity,
+                rotation_age=rotation_age, rotation_logrhk=rotation_logrhk, rv_peaks=rv_peaks, 
+                activity_peaks=activity_peaks, n_harps=n_harps))
         
-        f.write('{name}, {rms0:.1f}, {rms1}, {n_stps}, {n_harps}, {n_bad}, {baseline:.1f}, {logrhk}, \
+        f.write('{name}, {rms0:.1f}, {rms1}, {n_stps}, {n_harps}, {n_bad}, {snr:.1f}, {baseline:.1f}, {logrhk}, \
                 {cand}, {trend}, {activity}, {rotation_age:.1f}, {rotation_logrhk:.1f}, \n'.format(name=starname, 
                 rms0=rms0, rms1=rms1, cand=candflag, trend=trend, activity=activity,
                 logrhk=np.mean(s.logrhk), 
                 n_stps=n_stps, n_harps=n_harps, n_bad=n_bad, baseline=baseline, rotation_age=rotation_age, 
-                rotation_logrhk=rotation_logrhk))
+                rotation_logrhk=rotation_logrhk, snr=est_snr))
         
-        tbl.write('{name} & {n_harps} & {trend} & {rms0:.1f} & {activity} & {rms1} & {activity_peaks} & {rotation_age:.1f} & \
-        {rotation_logrhk:.1f} & {rv_peaks}  \\\ \n'.format(
-            name=starname[3:], rms0=rms0, rms1=rms1, trend=trend, activity=activity,
-            rotation_age=rotation_age, rotation_logrhk=rotation_logrhk, rv_peaks=rv_peaks, 
-            activity_peaks=activity_peaks, n_harps=n_harps))
+
 
         '''''
         print('{name} & {n_harps} & {trend} & {rms0:.1f} & {activity} & {rms1} & {activity_peaks} & {rotation_age:.1f} & \

@@ -269,7 +269,6 @@ if __name__ == "__main__":
     #plt.plot(xs, kepler.calc_rvs(xs, par0))
     s4.subtract_trend(function=keplerian, plot=True, par0=par0)
     
-    '''''
     
     
     s = Star('HIP7585')
@@ -288,7 +287,12 @@ if __name__ == "__main__":
     
     #soln = leastsq(resid, par0, args=(function, self.date[self.mask], self.rv[self.mask], self.sig[self.mask]))
 
+    '''''
     
+    s = Star('HIP54582')
+    s.mask_bad()
+    s.bin()
+    s.subtract_trend(function=curve, plot=True)
     
     
     #s.plot_rv(ax=plt.gca())    
