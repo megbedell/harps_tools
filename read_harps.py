@@ -151,7 +151,7 @@ def read_snr(filename):
     Returns
     -------
     snr : np.ndarray
-    SNR values taken near the center of each order
+    M-order length array of SNR values taken near the center of each order
     '''
     sp = fits.open(filename)
     header = sp[0].header
@@ -166,10 +166,32 @@ def read_snr(filename):
     return snr
 
 
-def headers(filelist, outfile='data.csv', offset=(15.4,0.4)):
-    # reads relevant info from fits headers & saves as a csv
-    # input is a list of all bis files
-    # offset is the amount of change in RV after the 2015 isntrument upgrade
+def headers(filelist, outfile='data.csv', offset=(0.0,0.0), shk=True):
+    """
+    Reads relevant RV-related information from FITS headers.
+    
+    Parameters
+    ----------
+    filelist : list of str
+        N-length list of file names for BIS files. 
+        (Note: CCF files will do for most of this info,
+        but the BIS and FWHM parameters will fail.)
+    outfile : str (default: 'data.csv')
+        Name of output table.
+    offset : (float, float) tuple (default: (0.0, 0.0))
+        Offset of RVs post July 2015 HARPS upgrade relative to pre-upgrade, in (offset [m/s], 
+        uncertainty [m/s]) form. Will be automatically subtracted off from the returned RVs.
+    shk : bool (default : True)
+        If True, load up the spectrum and measure the S_HK activity index.
+        Note that this relies upon the S1D file being in the same folder as the BIS file
+        (which it will be by default if you untarred all the ESO archive data products)
+    
+    Returns
+    -------
+    data : list of arrays
+        List of various quantities that were saved in `outfile`. Each entry
+        is an N-length array.
+    """
     date, obj, bjd, rv, e_rv = [], [], [], [], []
     exptime, airm, drift, progid = [], [], [], []
     bis, fwhm, s_hk, e_s_hk, snr = [], [], [], [], []
@@ -192,20 +214,24 @@ def headers(filelist, outfile='data.csv', offset=(15.4,0.4)):
         if np.float(bjd[-1]) > 2457218.5:
             rv[-1] = rv[-1] - offset[0]
             e_rv[-1] = np.sqrt(e_rv[-1]**2 + offset[1]**2)
-        # load up the spectrum & measure activity index:
-        i = str.find(f, 'bis')
-        f2 = f[:i]+'s1d_A.fits'
-        sp = fits.open(f2)
-        header = sp[0].header
-        n_wave = header['NAXIS1']
-        crval1 = header['CRVAL1']
-        cdelt1 = header['CDELT1']
-        index = np.arange(n_wave, dtype=np.float64)
-        wave = crval1 + index*cdelt1
-        flux = sp[0].data
-        s_hk_i, e_s_hk_i = shk.calc_shk(wave, flux, rv[-1] / 1e3)
-        s_hk = np.append(s_hk, s_hk_i)
-        e_s_hk = np.append(e_s_hk, e_s_hk_i)
+        if shk:
+            # load up the spectrum & measure activity index:
+            i = str.find(f, 'bis')
+            f2 = f[:i]+'s1d_A.fits'
+            sp = fits.open(f2)
+            header = sp[0].header
+            n_wave = header['NAXIS1']
+            crval1 = header['CRVAL1']
+            cdelt1 = header['CDELT1']
+            index = np.arange(n_wave, dtype=np.float64)
+            wave = crval1 + index*cdelt1
+            flux = sp[0].data
+            s_hk_i, e_s_hk_i = shk.calc_shk(wave, flux, rv[-1] / 1e3)
+            s_hk = np.append(s_hk, s_hk_i)
+            e_s_hk = np.append(e_s_hk, e_s_hk_i)
+        else:
+            s_hk = np.zeros_like(rv) + np.nan
+            e_s_hk = np.zeros_like(rv)
     np.savetxt(outfile, np.transpose([filelist, date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk, snr]),
             header='filename, date, obj, bjd, rv, e_rv, exptime, progid, airm, drift, bis, fwhm, s_hk, e_s_hk, snr', delimiter=',',
             fmt='%s')
@@ -254,22 +280,19 @@ def write_systemic(bjd, rv, e_rv, starname='star', starmass=1.0, systemic_dir='/
         
 
 if __name__ == "__main__":
-    #data_dir = '/Users/mbedell/Documents/Research/GJ876/'
-    #filelist = glob.glob(data_dir+'HARPS*_bis_*_A.fits')
-    #headers(filelist, outfile=data_dir+'gj876.csv')
     
     #data_dir = '/Users/mbedell/Documents/Research/HARPSTwins/Data/Reduced/'
     #filelist = np.append(glob.glob(data_dir+'*/HARPS*_bis_*_A.fits'), glob.glob(data_dir+'archive/*/HARPS*_bis_*_A.fits'))
     #filelist = np.append(filelist, glob.glob(data_dir+'18Sco_archive/*/HARPS*_bis_*_A.fits'))
     #print "{0} files found. Reading them now...".format(len(filelist))
     #outfile = '/Users/mbedell/Documents/Research/HARPSTwins/Results/all.csv'
-    #headers(filelist, outfile=outfile)
+    #data = headers(filelist, outfile=outfile, , offset=(15.4,0.4))
     #print "Results saved to: {0}".format(outfile)
     
-    data_dir = '/Users/mbedell/python/tesstwin/data/HARPS/'
+    data_dir = '/Users/mbedell/Documents/Research/pi-men/'
     filelist = glob.glob(data_dir+'HARPS*_bis_*_A.fits')
     print("{0} files found. Reading them now...".format(len(filelist)))
-    outfile = '/Users/mbedell/python/tesstwin/data/harps_rvs.csv'
+    outfile = '/Users/mbedell/Documents/Research/pi-men/harps_rvs.csv'
     data = headers(filelist, outfile=outfile, offset=(0.0,0.0))
     print("Results saved to: {0}".format(outfile))
     
