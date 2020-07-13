@@ -204,7 +204,7 @@ for i=0, n_unique-1 do begin
   vels_file = out_dir+star_name+'_result.vels'
  
  
- save,files,date,rv,sig,airm,berv,snr,exp,ra,dec,Shk,Shk_err,logRhk,jitter,bis,fwhm,filename=dat_file
+ save,files,date,rv,sig,airm,berv,drift,snr,exp,ra,dec,Shk,Shk_err,logRhk,jitter,bis,fwhm,filename=dat_file
 
  console_gen,dat_file,vels_file
 endfor
